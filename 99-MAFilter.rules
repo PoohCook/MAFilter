@@ -1,0 +1,2 @@
+#Rules file for the MAFilter device driver
+KERNEL=="MAFilter", SUBSYSTEM=="maf", MODE="0666"
