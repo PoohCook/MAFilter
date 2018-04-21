@@ -27,14 +27,20 @@
 #include "strNumConv.h"
 
 
-int ConvertToIntArray( const char* strIn, int* buffer_outp, int size ){
+
+int ConvertToIntArray(  const char* strIn, int* buffer_outp, int size ){
+    
     
     const char* scanp = strIn;
+    const char* scanEnd = scanp + strlen(strIn);
     int n;
     int indx=0;
+    int result;
     
-    while (sscanf(scanp, "%d%n", buffer_outp+indx, &n) == 1) {
-      indx++;
+       
+    while (scanp < scanEnd) {
+      result = sscanf(scanp, "%d%n", buffer_outp+indx, &n);
+      if( result == 1)indx++;
       scanp += n;
       if( indx >= size)
           break;

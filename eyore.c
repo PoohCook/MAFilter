@@ -76,15 +76,24 @@ void test_converter_badData(){
     char outStr[100];
     int result;
     
-    p = "5 17 usagi and I when shopping 2073 0 1abc 888 921 z032 0 a b 666 22 33 44 55  678";
+    p = "5 17 usagi  1073 2 12abc 888 92 z032 0 a b, 696 212 333 444 535  68 12";
     result = ConvertToIntArray(p, data, 100);
     
     assert_equal( result, 16, "G1:Wrong number of integers parsed"); 
     
-    int expected[] = {5,17,2073,0,1,888,921,032,0,666,22,33,44,55,678};
-    assert_equal_memcmp(data, expected , sizeof(int[15]), "G2:wrong value returned from RetriveNumbers ");
+    int expected[] = {5,17,1073,2,12,888,92,32,0,696,212,333,444,535,68,12};
+    assert_equal_memcmp(data, expected , sizeof(int[16]), "G2:wrong value returned from RetriveNumbers ");
 
+    // HACK: this test is failing and correcting the issue will require 
+    // rewriting ConvertToIntArray to not use scanf...  Left the test as  a reminder
+    p = "123, 234, 345, 456,567,678,789,890";
+    result = ConvertToIntArray(p, data, 100);
     
+    assert_equal( result, 8, "G3:Wrong number of integers parsed"); 
+    
+    int expected2[] = {123,234,345,456,567,678,789,890};
+    assert_equal_memcmp(data, expected2 , sizeof(int[8]), "G4:wrong value returned from RetriveNumbers ");
+
     
    
   
