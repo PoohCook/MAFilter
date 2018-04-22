@@ -1,10 +1,11 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file   eyore.c
+ * @author Pooh Cook
+ * @date   20 April 2018
+ * @version 0.1
+ * @brief   Oh bother, oh bother... testing is such a bother...
+ *          Eyore is Pooh's test donkey since he never thinks anything is going work out.. 
  */
-
-
 
 
 #include<stdio.h>
@@ -19,7 +20,7 @@
 #include "dataStore.h"
 #include "movingAverageFilter.h"
 
-
+// Series of hackish asserts to look sorta like a unit test 
 void assert_equal( int actual, int expected, char*msg){
     if( actual != expected ) printf("ERROR!!! %s; expected(%d) recieved(%d)\n", msg, expected, actual);
 }
@@ -40,6 +41,8 @@ void assert_equal_memcmp(void* actual, void* expected, size_t size, char*msg ){
     }
 }
 
+
+//  Test cases for the String to Integer converters
 void test_converters (){
        
     char *p;
@@ -59,18 +62,32 @@ void test_converters (){
               
     result = ConvertToString(data, result, outStr, 30);
     
-    assert_equal( result, 10, "E3a:Wrong number of ints returned from ConvertToString ");   
+    assert_equal( result, 9, "E3a:Wrong number of ints returned from ConvertToString ");   
 
-    assert_str_equal(outStr, "5 17 183 2073 0 1 888 921 32 0", "E4: Wrong string returned from ConvertToString" );
+    assert_str_equal(outStr, "5 17 183 2073 0 1 888 921 32", "E3b: Wrong string returned from ConvertToString" );
     
     result = ConvertToString(data, 16, outStr, 100);
     
-    assert_equal( result, 16, "E3b:Wrong number of ints returned from ConvertToString ");   
+    assert_equal( result, 16, "E4a:Wrong number of ints returned from ConvertToString ");   
 
-    assert_str_equal(outStr, "5 17 183 2073 0 1 888 921 32 0 666 22 33 44 55 678", "E4: Wrong string returned from ConvertToString" );
+    assert_str_equal(outStr, "5 17 183 2073 0 1 888 921 32 0 666 22 33 44 55 678", "E4b: Wrong string returned from ConvertToString" );
  
+    // short buffer for convert to 
+    result = ConvertToString(data, 16, outStr, 22);
+    assert_equal( result, 7, "E5a:Wrong number of ints returned from ConvertToString ");   
+
+    assert_str_equal(outStr, "5 17 183 2073 0 1 888", "E5b: Wrong string returned from ConvertToString" );
+    
+     // short buffer for convert to 
+    result = ConvertToString(data, 16, outStr, 21);
+    assert_equal( result, 6, "E6a:Wrong number of ints returned from ConvertToString ");   
+
+    assert_str_equal(outStr, "5 17 183 2073 0 1", "E6b: Wrong string returned from ConvertToString" );
+    
+    
 }
 
+//  Some bogus data test cases for the string to integer converters
 void test_converter_badData(){
     
      char *p;
@@ -102,6 +119,7 @@ void test_converter_badData(){
     
 }
 
+//  Test cases for the data store using single value operations
 void test_dataStore(){
     struct dataStore* ds;
     int indx, result, out;
@@ -177,6 +195,7 @@ void test_dataStore(){
     
 }
 
+//  Test cases for the data store using buffer values operations
 void test_dataStore_bufferAccess(){
     
     struct dataStore* ds;
@@ -214,12 +233,44 @@ void test_dataStore_bufferAccess(){
     assert_equal(result, 10, "F4c:wrong result returned from RetriveNumber ");
     assert_equal_memcmp(outBuff, expected , sizeof(int[10]), "F4d:wrong value returned from RetriveNumbers ");
     
+    result = PushBackNumbers(ds, outBuff+5, 5);
+    result = RetriveNumbers(ds, outBuff, 20);
+    assert_equal(result, 5, "F4d:wrong result returned from RetriveNumber ");
+    assert_equal_memcmp(outBuff, expected+5 , sizeof(int[5]), "F4e:wrong value returned from RetriveNumbers ");
+    
+    
+    result = PushBackNumbers(ds, inBuff2, 10);
+    result = RetriveNumbers(ds, outBuff, 20);
+    assert_equal(result, 10, "F4f:wrong result returned from RetriveNumber ");
+    assert_equal_memcmp(outBuff, inBuff2 , sizeof(int[10]), "F4g:wrong value returned from RetriveNumbers ");
+ 
+    
+    result = StoreNumbers(ds, inBuff2, 10);
+    result = RetriveNumbers(ds, outBuff, 5);
+    result = PushBackNumbers(ds, inBuff2+2, 3);
+    result = RetriveNumbers(ds, outBuff, 20);
+    assert_equal(result, 8, "F4h:wrong result returned from RetriveNumber ");
+    assert_equal_memcmp(outBuff, inBuff2+2 , sizeof(int[8]), "F4i:wrong value returned from RetriveNumbers ");
+
+    
+    //  Test that push back is not allowed to overwrite the tail
+    int inBuff3[] = {69,70,71,72,73,74,75,76,77,78};
+    result = StoreNumbers(ds, inBuff2, 10);
+    result = RetriveNumbers(ds, outBuff, 5);
+    result = PushBackNumbers(ds, inBuff3, 8);
+    result = RetriveNumbers(ds, outBuff, 20);
+    assert_equal(result, 10, "F5a:wrong result returned from RetriveNumber ");
+    int expected2[] = {72,73,74,75,76,55,66,77,88,99};
+    assert_equal_memcmp(outBuff, expected2 , sizeof(int[10]), "F5b:wrong value returned from RetriveNumbers ");
+    
+    
     FreeDataStore(ds);
-    
-    
     
 }
 
+
+
+// test cases for the MOving Average Filter
 void test_MovAvgFilter(){
     
     int fval;
@@ -266,9 +317,6 @@ void test_MovAvgFilter(){
     mav = CreateMovAvgFilter(4);
     DoMovAvgOnValues(mav, input3, 12);
     assert_equal_memcmp(input3, expected3 , sizeof(int[12]), "H2:wrong value returned from DoMovAvgOnValues ");
-
-    
-    
     
     FreeMovAvgFilter(mav);
     
@@ -278,9 +326,7 @@ void test_MovAvgFilter(){
 int main(){
     
     printf("Oh, bother...\n");
-    
-    
-
+ 
     test_converters();
     
     test_converter_badData();

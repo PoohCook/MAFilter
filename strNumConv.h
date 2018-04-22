@@ -1,12 +1,7 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
 /* 
  * File:   strNumConv.h
- * Author: pooh
+ * Author: Pooh Cook
  *
  * Created on April 20, 2018, 9:26 PM
  */
@@ -15,8 +10,8 @@
 #define STRNUMCONV_H
 
 
-int ConvertToIntArray( const char* strIn, int* buffer_outp, int size );
-int ConvertToString ( int* buffer_inp, int buff_size, char* strOut, int str_size);
+int ConvertToIntArray( const char* strIn, int* buffer, int size );
+int ConvertToString ( int* buffer, int buff_size, char* str, size_t str_size);
 
 
 #endif /* STRNUMCONV_H */

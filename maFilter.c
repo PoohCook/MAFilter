@@ -13,12 +13,12 @@
 #include <linux/kernel.h>
 #include <linux/fs.h> 
 #include <linux/uaccess.h>
-#include<linux/slab.h>
+#include <linux/slab.h>
 
 #include "dataStore.h"
 #include "strNumConv.h"
 #include "movingAverageFilter.h"
-#include"ma_ioctl.h"
+#include "ma_ioctl.h"
 
 #define  DEVICE_NAME "MAFilter"   
 #define  CLASS_NAME  "maf"        
@@ -32,15 +32,24 @@ static int    majorNumber;                  ///< Stores the device number -- det
 static struct class*  MAFClass  = NULL;     ///< The device-driver class struct pointer
 static struct device* MAFDevice = NULL;     ///< The device-driver device struct pointer
 
+// HACK:  this is mutex precludes concurrent usage of the Device driver 
+// trouble is, it's not clear why 2 users would want to use this driver 
+// concurrently so it's also unclear how this should actually be handled
+static DEFINE_MUTEX(dev_mutex);  /// A macro that is used to declare a new mutex that is visible in this file
+                                     /// results in a semaphore variable dev_mutex with value 1 (unlocked)
+                                     
+
 #define DATA_BUFFFER_SIZE   10000
-static struct dataStore* dStore;
+static struct dataStore* dStore = NULL;     // circular buffer for storing filtered data. If stored data 
+                                            // exceeds the size of this buffer, data will be evacuated (and lost) 
+                                            // from the head of the queue i.e loss the old history and hang onto the
+                                            // to the more recent.
 
 #define DEFAULT_MOV_AVG_SIZE 5
-static struct movingAverageFilter* movAvgFilter;
+static struct movingAverageFilter* movAvgFilter = NULL;  // filter that store the needed filtering history 
         
-int dataBuffer[DATA_BUFFFER_SIZE];
-
-
+int dataBuffer[DATA_BUFFFER_SIZE];  // working buffer for dev_read and dev_write. Its declared the 
+                                    // same size as the data store to simplify read and write code 
 
 // forward definition of device operations
 static int     dev_open(struct inode *, struct file *);
@@ -58,6 +67,15 @@ static struct file_operations fops =
    .release = dev_release,
    .unlocked_ioctl = dev_ioctl,
 };
+
+/** @brief method to dispose and create new moving average filter
+ * 
+ */
+static void allocate_new_movAvgFilter(int size){
+    if( movAvgFilter != NULL) FreeMovAvgFilter(movAvgFilter);
+    movAvgFilter = CreateMovAvgFilter(size);  
+    
+}
 
 /** @brief The LKM initialization function
  *  @return returns 0 if successful
@@ -91,10 +109,12 @@ static int __init maf_init(void){
       return PTR_ERR(MAFDevice);
    }
    
+   mutex_init(&dev_mutex);       /// Initialize the mutex lock dynamically at runtime
+   
    // Allocate data storage buffer
    dStore = CreateDataStore(DATA_BUFFFER_SIZE);
    
-   movAvgFilter = CreateMovAvgFilter(DEFAULT_MOV_AVG_SIZE);
+   allocate_new_movAvgFilter(DEFAULT_MOV_AVG_SIZE);
     
    printk(KERN_INFO "MAFilter: allocated Data buffer size=%d \n", dStore->buff_size-1); 
    
@@ -106,14 +126,15 @@ static int __init maf_init(void){
 /** @brief The LKM cleanup function
  */
 static void __exit maf_exit(void){
-    
-   FreeMovAvgFilter(movAvgFilter);
-   FreeDataStore(dStore);  
-   device_destroy(MAFClass, MKDEV(majorNumber, 0));     // remove the device
-   class_unregister(MAFClass);                          // unregister the device class
-   class_destroy(MAFClass);                             // remove the device class
-   unregister_chrdev(majorNumber, DEVICE_NAME);             // unregister the major number
-   printk(KERN_INFO "MAFilter: Goodbye from the MAFilter!\n");
+   
+    mutex_destroy(&dev_mutex);        /// destroy the dynamically-allocated mutex
+    FreeMovAvgFilter(movAvgFilter);
+    FreeDataStore(dStore);  
+    device_destroy(MAFClass, MKDEV(majorNumber, 0));     // remove the device
+    class_unregister(MAFClass);                          // unregister the device class
+    class_destroy(MAFClass);                             // remove the device class
+    unregister_chrdev(majorNumber, DEVICE_NAME);             // unregister the major number
+    printk(KERN_INFO "MAFilter: Goodbye from the MAFilter!\n");
 }
 
 /** @brief The device open function 
@@ -121,6 +142,11 @@ static void __exit maf_exit(void){
  *  @param filep A pointer to a file object (defined in linux/fs.h)
  */
 static int dev_open(struct inode *inodep, struct file *filep){
+    if(!mutex_trylock(&dev_mutex)){    /// Try to acquire the mutex 
+      printk(KERN_ALERT "MAFilter: Device in use by another process");
+      return -EBUSY;
+   }
+    
    printk(KERN_INFO "MAFilter: Device has been opened  \n");
    return 0;
 }
@@ -134,29 +160,28 @@ static int dev_open(struct inode *inodep, struct file *filep){
  */
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
    int error_count = 0;
-    
-   int result, read_count;
+   int write_count, read_count;
    char* lxBuffer;
       
    read_count = RetriveNumbers(dStore, dataBuffer, DATA_BUFFFER_SIZE);  
-   
       
    lxBuffer = (char*)kmalloc(len, GFP_KERNEL);
-   result = ConvertToString(dataBuffer, read_count, lxBuffer, len);
-   error_count = copy_to_user(buffer, lxBuffer, strlen(lxBuffer));
+   write_count = ConvertToString(dataBuffer, read_count, lxBuffer, len);
+   error_count = copy_to_user(buffer, lxBuffer, strlen(lxBuffer)+1);
    kfree(lxBuffer);
    
-   // HACK: if dev_read provided too small of a buffer then data would be lost here
-   // routine should check for read_count > result and return the data back to the 
-   // the head of the store
+   // if dev_read provided too small of a buffer then push back non returned data
+   if( read_count > write_count){
+       PushBackNumbers(dStore, dataBuffer+write_count, read_count - write_count);
+   }
    
-   if (error_count==0){            // if true then have success
-      printk(KERN_INFO "MAFilter: Sent %d characters to the user\n", result);
+   if (error_count==0){    // if no errors then success
+      printk(KERN_INFO "MAFilter: Sent %d numbers to the user\n", write_count);
       return 0;  
    }
    else {
       printk(KERN_INFO "MAFilter: Failed to send %d numbers to the user\n", error_count);
-      return -EFAULT;              // Failed -- return a bad address message (i.e. -14)
+      return -EFAULT; // Failed -- return a bad address message (i.e. -14)
    }
 }
 
@@ -172,9 +197,9 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
     int wr_count;
     char* lxBuffer;
     
-    // HACK: This does not handle case where input len is greater than DATA_BUFFFER_SIZE
-    // In such case, the rule of loosing data from the tail will be lost and 
-    // data will be lost from the head
+    // NOTE: in the case where input len is greater than DATA_BUFFFER_SIZE
+    // data will be lost from the head of the store to preserve the most recently written data 
+    //  this rule is encoded in the DataStore
     lxBuffer = (char*)kmalloc(len, GFP_KERNEL);
     error_count = copy_from_user(lxBuffer, buffer, len);
     wr_count = ConvertToIntArray(lxBuffer, dataBuffer, DATA_BUFFFER_SIZE);
@@ -192,22 +217,31 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
  *  @param filep A pointer to a file object (defined in linux/fs.h)
  */
 static int dev_release(struct inode *inodep, struct file *filep){
-   printk(KERN_INFO "MAFilter: Device successfully closed\n");
-   return 0;
+    mutex_unlock(&dev_mutex);          /// Releases the mutex
+    printk(KERN_INFO "MAFilter: Device successfully closed\n");
+    return 0;
 }
 
+/** @brief The device control messages are handled here when ioctl is called by 
+ *  the userspace program
+ *  
+ *  @param filep A pointer to a file object (defined in linux/fs.h)
+ *  @param cmd  The command being issued
+ *  @param arg  The argument associated with the command
+ */
 static long dev_ioctl (struct file *filep, unsigned int cmd, unsigned long arg){
-   printk(KERN_INFO "MAFilter: Device control recieved cmd(%x) arg(%lu)\n", cmd, arg ); 
-   switch( cmd){
+    printk(KERN_INFO "MAFilter: Device control recieved cmd(%x) arg(%lu)\n", cmd, arg ); 
+    switch( cmd){
        case MAF_SET_FILTER_SIZE:
+          allocate_new_movAvgFilter(arg);
           printk(KERN_INFO "MAFilter: Reset Filter buffer size to: %lu\n",  arg );  
-           
+          break;
+          
        default:
            break;
-   };
+    };
    
-   
-   return 0;
+    return 0;
 }
 
 

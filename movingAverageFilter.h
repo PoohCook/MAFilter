@@ -25,7 +25,7 @@ struct movingAverageFilter{
 };
 
 
-struct movingAverageFilter* CreateMovAvgFilter(int bufferSize);
+struct movingAverageFilter* CreateMovAvgFilter(int buffer_size);
 void FreeMovAvgFilter(struct movingAverageFilter* mav);
 
 int GetMovAvgValue( struct movingAverageFilter* mav, int value);

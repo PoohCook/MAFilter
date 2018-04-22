@@ -6,7 +6,7 @@
 
 /* 
  * File:   dataStore.h
- * Author: pooh
+ * Author: Pooh Cook
  *
  * Created on April 20, 2018, 4:42 PM
  */
@@ -23,14 +23,15 @@ struct dataStore {
     int* buff_outp;                     ///< output pointer
 };
 
-struct dataStore* CreateDataStore(int bufferSize);
+struct dataStore* CreateDataStore(int buffer_size);
 void FreeDataStore(struct dataStore* ds);
 int StoreNumber( struct dataStore* ds, int value );
-int RetriveNumber( struct dataStore* ds, int* outValue );
+int RetriveNumber( struct dataStore* ds, int* value );
 bool IsStoreEmpty( struct dataStore* ds);
 int StoreNumbers( struct dataStore* ds, int* values, int count );
-int RetriveNumbers( struct dataStore* ds, int* values, int count );
-int PeekBuffer( struct dataStore* ds, int* values, int count );
+int RetriveNumbers( struct dataStore* ds, int* values, int size );
+int PeekBuffer( struct dataStore* ds, int* values, int size );
+int PushBackNumbers( struct dataStore* ds, int* values, int count );
 
 #endif /* DATASTORE_H */
 

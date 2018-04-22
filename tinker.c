@@ -20,6 +20,9 @@
 #define BUFFER_LENGTH 256               ///< The buffer length (crude but fine)
 static char receive[BUFFER_LENGTH];     ///< The receive buffer from the LKM
 
+
+//  This whole program is one big HACK...  Rather than fix it, I'm going to create 
+// something in Java to replace it....
 int main(){
    int ret, fd, filterSize;
    char stringToSend[BUFFER_LENGTH];
@@ -59,14 +62,36 @@ int main(){
 
    // Read the response from the LKM
    printf("Reading from the device...\n");
-   ret = read(fd, receive, BUFFER_LENGTH);       
+   ret = read(fd, receive, 20);       
    if (ret < 0){
       perror("Failed to read the message from the device.");
       return errno;
    }
    
+   printf("The received message1 is: [%s]\n", receive);
    
-   printf("The received message is: [%s]\n", receive);
+   printf("Reading from the device...\n");
+   ret = read(fd, receive, 20);       
+   if (ret < 0){
+      perror("Failed to read the message from the device.");
+      return errno;
+   }
+   
+   printf("The received message2 is: [%s]\n", receive);
+   
+   printf("Reading from the device...\n");
+   ret = read(fd, receive, 20);       
+   if (ret < 0){
+      perror("Failed to read the message from the device.");
+      return errno;
+   }
+   
+   printf("The received message3 is: [%s]\n", receive);
+   
+   
+   
+   
+   
    printf("End of the program\n");
    return 0;
 }
