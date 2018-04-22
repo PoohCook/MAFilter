@@ -11,6 +11,7 @@
 #include <linux/device.h> 
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <linux/ctype.h>
 
 #else
 
@@ -21,10 +22,48 @@
 #include<string.h>
 #include<unistd.h>
 #include <stdbool.h>
+#include <ctype.h>
+
+#include "testStubs.h"
 
 #endif
 
 #include "strNumConv.h"
+
+#define NUMBER_TOO_LONG -2
+
+
+int scan_for_int ( const char* scanp, int*valuep,  int* numScanned ){
+    
+    int buffSize = 6;
+    char buffer[buffSize+1];
+    
+    char *buffp = buffer;
+    *buffp = 0;
+    *numScanned = 0;
+    
+    // advance  to next digit 
+    while( *scanp != 0 &&  !isdigit(*scanp)) {
+        scanp++;
+        (*numScanned)++;
+    }
+    
+    // scan digits into buffer 
+    while( *scanp != 0 && buffp < (buffer+buffSize) &&  isdigit(*scanp)){
+        *buffp++ = *scanp++;
+        *buffp = 0;    //terminate the buffer
+        (*numScanned)++;
+    }
+    
+    //  number is longer that buffer
+    if (isdigit(*scanp))return NUMBER_TOO_LONG;
+    
+    return kstrtoint (	buffer, 10, valuep);
+    
+    
+
+}
+
 
 
 
@@ -38,9 +77,9 @@ int ConvertToIntArray(  const char* strIn, int* buffer_outp, int size ){
     int result;
     
        
-    while (scanp < scanEnd) {
-      result = sscanf(scanp, "%d%n", buffer_outp+indx, &n);
-      if( result == 1)indx++;
+    while (scanp < scanEnd) {      
+      result = scan_for_int(scanp,buffer_outp+indx, &n);
+      if( result == 0)indx++;
       scanp += n;
       if( indx >= size)
           break;

@@ -17,6 +17,8 @@
 
 #include "dataStore.h"
 #include "strNumConv.h"
+#include "movingAverageFilter.h"
+#include"ma_ioctl.h"
 
 #define  DEVICE_NAME "MAFilter"   
 #define  CLASS_NAME  "maf"        
@@ -33,13 +35,19 @@ static struct device* MAFDevice = NULL;     ///< The device-driver device struct
 #define DATA_BUFFFER_SIZE   10000
 static struct dataStore* dStore;
 
+#define DEFAULT_MOV_AVG_SIZE 5
+static struct movingAverageFilter* movAvgFilter;
+        
 int dataBuffer[DATA_BUFFFER_SIZE];
+
+
 
 // forward definition of device operations
 static int     dev_open(struct inode *, struct file *);
 static int     dev_release(struct inode *, struct file *);
 static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
 static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
+static long    dev_ioctl (struct file *, unsigned int, unsigned long);
 
 // implement basic file operation for a Linux Character Device Driver
 static struct file_operations fops =
@@ -48,6 +56,7 @@ static struct file_operations fops =
    .read = dev_read,
    .write = dev_write,
    .release = dev_release,
+   .unlocked_ioctl = dev_ioctl,
 };
 
 /** @brief The LKM initialization function
@@ -84,6 +93,9 @@ static int __init maf_init(void){
    
    // Allocate data storage buffer
    dStore = CreateDataStore(DATA_BUFFFER_SIZE);
+   
+   movAvgFilter = CreateMovAvgFilter(DEFAULT_MOV_AVG_SIZE);
+    
    printk(KERN_INFO "MAFilter: allocated Data buffer size=%d \n", dStore->buff_size-1); 
    
    printk(KERN_INFO "MAFilter: device class successfully created \n"); 
@@ -95,12 +107,13 @@ static int __init maf_init(void){
  */
 static void __exit maf_exit(void){
     
+   FreeMovAvgFilter(movAvgFilter);
    FreeDataStore(dStore);  
    device_destroy(MAFClass, MKDEV(majorNumber, 0));     // remove the device
    class_unregister(MAFClass);                          // unregister the device class
    class_destroy(MAFClass);                             // remove the device class
    unregister_chrdev(majorNumber, DEVICE_NAME);             // unregister the major number
-   printk(KERN_INFO "MAFilter: Goodbye from the LKM!\n");
+   printk(KERN_INFO "MAFilter: Goodbye from the MAFilter!\n");
 }
 
 /** @brief The device open function 
@@ -108,7 +121,7 @@ static void __exit maf_exit(void){
  *  @param filep A pointer to a file object (defined in linux/fs.h)
  */
 static int dev_open(struct inode *inodep, struct file *filep){
-   printk(KERN_INFO "MAFilter: Device has been opened \n");
+   printk(KERN_INFO "MAFilter: Device has been opened  \n");
    return 0;
 }
 
@@ -156,7 +169,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
    
     int error_count = 0;
-    int result;
+    int wr_count;
     char* lxBuffer;
     
     // HACK: This does not handle case where input len is greater than DATA_BUFFFER_SIZE
@@ -164,11 +177,12 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
     // data will be lost from the head
     lxBuffer = (char*)kmalloc(len, GFP_KERNEL);
     error_count = copy_from_user(lxBuffer, buffer, len);
-    result = ConvertToIntArray(lxBuffer, dataBuffer, DATA_BUFFFER_SIZE);
-    StoreNumbers(dStore, dataBuffer, result);
+    wr_count = ConvertToIntArray(lxBuffer, dataBuffer, DATA_BUFFFER_SIZE);
+    DoMovAvgOnValues(movAvgFilter, dataBuffer, wr_count);
+    StoreNumbers(dStore, dataBuffer, wr_count);
     kfree(lxBuffer);
     
-    printk(KERN_INFO "MAFilter: Received %d numbers from the user\n", result);
+    printk(KERN_INFO "MAFilter: Received %d numbers from the user\n", wr_count);
     return len;
 }
 
@@ -181,6 +195,21 @@ static int dev_release(struct inode *inodep, struct file *filep){
    printk(KERN_INFO "MAFilter: Device successfully closed\n");
    return 0;
 }
+
+static long dev_ioctl (struct file *filep, unsigned int cmd, unsigned long arg){
+   printk(KERN_INFO "MAFilter: Device control recieved cmd(%x) arg(%lu)\n", cmd, arg ); 
+   switch( cmd){
+       case MAF_SET_FILTER_SIZE:
+          printk(KERN_INFO "MAFilter: Reset Filter buffer size to: %lu\n",  arg );  
+           
+       default:
+           break;
+   };
+   
+   
+   return 0;
+}
+
 
 // Register the init and exit funtions
 module_init(maf_init);

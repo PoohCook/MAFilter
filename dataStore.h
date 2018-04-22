@@ -30,6 +30,7 @@ int RetriveNumber( struct dataStore* ds, int* outValue );
 bool IsStoreEmpty( struct dataStore* ds);
 int StoreNumbers( struct dataStore* ds, int* values, int count );
 int RetriveNumbers( struct dataStore* ds, int* values, int count );
+int PeekBuffer( struct dataStore* ds, int* values, int count );
 
 #endif /* DATASTORE_H */
 

@@ -17,6 +17,7 @@
 
 #include "strNumConv.h"
 #include "dataStore.h"
+#include "movingAverageFilter.h"
 
 
 void assert_equal( int actual, int expected, char*msg){
@@ -45,6 +46,7 @@ void test_converters (){
     int data[100];
     char outStr[100];
     int result;
+    
     
     p = "5 17 183 2073 0 1 888 921 032 0 666 22 33 44 55  678";
     result = ConvertToIntArray(p, data, 100);
@@ -76,7 +78,7 @@ void test_converter_badData(){
     char outStr[100];
     int result;
     
-    p = "5 17 usagi  1073 2 12abc 888 92 z032 0 a b, 696 212 333 444 535  68 12";
+    p = "5 17 usagi  1073 2 12abc 888 92 z032 0 a b, 696,212 333 444 535  68 12";
     result = ConvertToIntArray(p, data, 100);
     
     assert_equal( result, 16, "G1:Wrong number of integers parsed"); 
@@ -86,7 +88,7 @@ void test_converter_badData(){
 
     // HACK: this test is failing and correcting the issue will require 
     // rewriting ConvertToIntArray to not use scanf...  Left the test as  a reminder
-    p = "123, 234, 345, 456,567,678,789,890";
+    p = "123, 234, 345, 456;567,678,789; 890";
     result = ConvertToIntArray(p, data, 100);
     
     assert_equal( result, 8, "G3:Wrong number of integers parsed"); 
@@ -106,6 +108,7 @@ void test_dataStore(){
     
     ds = CreateDataStore(10);
     
+    
     // add 10 entries
     for( indx=0 ; indx < 10 ; indx++ ){
         result = StoreNumber(ds, indx);
@@ -122,6 +125,8 @@ void test_dataStore(){
     // check for empty 
     result = RetriveNumber(ds, &out);
     assert_equal(result, -1, "D2b:wrong result returned from RetriveNumber ");  
+    
+       
     
     // Add 8 entries
     for( indx=0 ; indx < 8 ; indx++ ){
@@ -168,7 +173,7 @@ void test_dataStore(){
     result = RetriveNumber(ds, &out);
     assert_equal(result, -1, "D10b:wrong result returned from RetriveNumber "); 
   
-    
+    FreeDataStore(ds);
     
 }
 
@@ -181,6 +186,7 @@ void test_dataStore_bufferAccess(){
     int  result;
     
     ds = CreateDataStore(10);
+    
     
     int inBuff[] = {0,11,22,33,44,555,666,77,88,99};
     // add 10 entries
@@ -200,13 +206,71 @@ void test_dataStore_bufferAccess(){
     assert_equal(result, 0, "F3:wrong result returned from StoreNumber ");
    
     
-    result = RetriveNumbers(ds, outBuff, 20);
+    result = PeekBuffer(ds, outBuff, 20);
     assert_equal(result, 10, "F4a:wrong result returned from RetriveNumber ");
     assert_equal_memcmp(outBuff, expected , sizeof(int[10]), "F4b:wrong value returned from RetriveNumbers ");
 
+    result = RetriveNumbers(ds, outBuff, 20);
+    assert_equal(result, 10, "F4c:wrong result returned from RetriveNumber ");
+    assert_equal_memcmp(outBuff, expected , sizeof(int[10]), "F4d:wrong value returned from RetriveNumbers ");
     
+    FreeDataStore(ds);
+    
+    
+    
+}
+
+void test_MovAvgFilter(){
+    
+    int fval;
+    struct movingAverageFilter* mav = CreateMovAvgFilter(5);
+    
+    
+    fval = GetMovAvgValue(mav, 10);
+    assert_equal(fval, 10, "H1: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 10);
+    assert_equal(fval, 10, "H1a: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 50);
+    assert_equal(fval, 23, "H1b: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 100);
+    assert_equal(fval, 43, "H1c: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 100);
+    assert_equal(fval, 54, "H1d: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 200);
+    assert_equal(fval, 92, "H1e: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 100);
+    assert_equal(fval, 110, "H1f: wrong filtered value returned");
+    fval = GetMovAvgValue(mav, 1);
+    assert_equal(fval, 100, "H1: wrong filtered value returned");
+    
+    int input[] = {10,10,50,100,100,200,100,1};
+    int expected[] = {10,10,23,43,54,92,110,100};
+    
+    FreeMovAvgFilter(mav);
+    mav = CreateMovAvgFilter(5);
+    DoMovAvgOnValues(mav, input, 8);
+    assert_equal_memcmp(input, expected , sizeof(int[8]), "H2:wrong value returned from DoMovAvgOnValues ");
+    
+    int input2[] = {-10,-10,-50,-100,-100,-200,-100,-1};
+    int expected2[] = {-10,-10,-23,-43,-54,-92,-110,-100};
+    
+    FreeMovAvgFilter(mav);
+    mav = CreateMovAvgFilter(5);
+    DoMovAvgOnValues(mav, input2, 8);
+    assert_equal_memcmp(input2, expected2 , sizeof(int[8]), "H2:wrong value returned from DoMovAvgOnValues ");
+
+    int input3[] = {10, 10, 50, -10,-10,-50,-100,-100,200,100,-100, 2};
+    int expected3[] = {10,10,23,15,10,-5,-43,-65, -13, 25, 25, 51};
+    
+    FreeMovAvgFilter(mav);
+    mav = CreateMovAvgFilter(4);
+    DoMovAvgOnValues(mav, input3, 12);
+    assert_equal_memcmp(input3, expected3 , sizeof(int[12]), "H2:wrong value returned from DoMovAvgOnValues ");
 
     
+    
+    
+    FreeMovAvgFilter(mav);
     
 }
 
@@ -214,6 +278,8 @@ void test_dataStore_bufferAccess(){
 int main(){
     
     printf("Oh, bother...\n");
+    
+    
 
     test_converters();
     
@@ -222,6 +288,8 @@ int main(){
     test_dataStore();
     
     test_dataStore_bufferAccess();
+    
+    test_MovAvgFilter();
     
     printf("No bother...\n");
     

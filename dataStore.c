@@ -12,26 +12,18 @@
 
 #include <linux/module.h> 
 #include <linux/slab.h>
-#include "dataStore.h"
+
 
 #else
 
 #include <stdlib.h>
 #include <stdbool.h>
-#include "dataStore.h"
+#include "testStubs.h"
 
-#define GFP_KERNEL 0
-void *kmalloc(size_t size, int flags){
-  return malloc(size);   
-}
-
-void kfree( void * blk){
-    free(blk);
-}
 
 #endif
 
-
+#include "dataStore.h"
 
 static int* buffer_end(struct dataStore* ds ){
     
@@ -61,7 +53,7 @@ struct dataStore* CreateDataStore(int bufferSize){
     // HACK, in order to accommodate simple pointer handling
     // there has to be one empty char in a full buffer...  Suspect this
     // can be relieved    
-    ds->buffer = kmalloc(bufferSize+1, GFP_KERNEL);
+    ds->buffer = kmalloc(sizeof(int[bufferSize+1]), GFP_KERNEL);
     ds->buff_size = bufferSize+1;
     ds->buff_inp = ds->buff_outp = ds->buffer;
     
@@ -120,4 +112,19 @@ int RetriveNumbers( struct dataStore* ds, int* values, int count ){
     
     return rdIndx;
     
+}
+
+int PeekBuffer (struct dataStore* ds, int* values, int count ){
+    
+    int* buff_outp;                     // copy output pointer
+    int rdIndx;
+        
+    buff_outp = ds->buff_outp;
+    
+    for(  rdIndx = 0; ds->buff_inp != buff_outp && rdIndx < count; rdIndx++ ){
+        values[rdIndx] = *buff_outp;
+        advance_p(ds, &buff_outp);
+    }
+    
+    return rdIndx;
 }

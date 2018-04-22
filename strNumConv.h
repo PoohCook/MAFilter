@@ -19,6 +19,5 @@ int ConvertToIntArray( const char* strIn, int* buffer_outp, int size );
 int ConvertToString ( int* buffer_inp, int buff_size, char* strOut, int str_size);
 
 
-
 #endif /* STRNUMCONV_H */
 

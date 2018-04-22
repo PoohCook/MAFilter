@@ -13,12 +13,15 @@
 #include<fcntl.h>
 #include<string.h>
 #include<unistd.h>
+#include<sys/ioctl.h>
+#include"ma_ioctl.h"
+
 
 #define BUFFER_LENGTH 256               ///< The buffer length (crude but fine)
 static char receive[BUFFER_LENGTH];     ///< The receive buffer from the LKM
 
 int main(){
-   int ret, fd;
+   int ret, fd, filterSize;
    char stringToSend[BUFFER_LENGTH];
    printf("Starting to tinker...\n");
    
@@ -28,6 +31,16 @@ int main(){
       perror("Failed to open the device...");
       return errno;
    }
+   
+   
+   printf("Enter Filter size to use:");
+   
+   // Read in a string (with spaces)
+   scanf("%d%*c", &filterSize); 
+   
+   int res = ioctl(fd, MAF_SET_FILTER_SIZE, filterSize);
+   printf("result = %d\n", res);
+   
    printf("Type in a short string to send to the kernel module:\n");
    
    // Read in a string (with spaces)
