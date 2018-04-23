@@ -104,7 +104,7 @@ int ConvertToIntArray(  const char* strIn, int* buffer, int size ){
     int strOutOffset = 0;
     
     for( indx=0 ; indx < buff_size ; indx++ ){
-        result = sprintf(numBuffer, "%s%d", indx == 0 ? "" : " ", buffer[indx] );
+        result = sprintf(numBuffer, "%s%d", indx == 0 ? "" : ", ", buffer[indx] );
         if( result <= 0 )return -1; // trap bogus values..  though, can't think of what those might be 
         if( strOutOffset + result + 1 > str_size ) break; //quit if result will overflow output buffer
         

@@ -35,6 +35,7 @@ static struct device* MAFDevice = NULL;     ///< The device-driver device struct
 // HACK:  this is mutex precludes concurrent usage of the Device driver 
 // trouble is, it's not clear why 2 users would want to use this driver 
 // concurrently so it's also unclear how this should actually be handled
+static bool use_mutex = false;
 static DEFINE_MUTEX(dev_mutex);  /// A macro that is used to declare a new mutex that is visible in this file
                                      /// results in a semaphore variable dev_mutex with value 1 (unlocked)
                                      
@@ -50,6 +51,7 @@ static struct movingAverageFilter* movAvgFilter = NULL;  // filter that store th
         
 int dataBuffer[DATA_BUFFFER_SIZE];  // working buffer for dev_read and dev_write. Its declared the 
                                     // same size as the data store to simplify read and write code 
+
 
 // forward definition of device operations
 static int     dev_open(struct inode *, struct file *);
@@ -109,7 +111,7 @@ static int __init maf_init(void){
       return PTR_ERR(MAFDevice);
    }
    
-   mutex_init(&dev_mutex);       /// Initialize the mutex lock dynamically at runtime
+   if( use_mutex) mutex_init(&dev_mutex);       /// Initialize the mutex lock dynamically at runtime
    
    // Allocate data storage buffer
    dStore = CreateDataStore(DATA_BUFFFER_SIZE);
@@ -127,7 +129,7 @@ static int __init maf_init(void){
  */
 static void __exit maf_exit(void){
    
-    mutex_destroy(&dev_mutex);        /// destroy the dynamically-allocated mutex
+    if( use_mutex) mutex_destroy(&dev_mutex);        /// destroy the dynamically-allocated mutex
     FreeMovAvgFilter(movAvgFilter);
     FreeDataStore(dStore);  
     device_destroy(MAFClass, MKDEV(majorNumber, 0));     // remove the device
@@ -142,7 +144,7 @@ static void __exit maf_exit(void){
  *  @param filep A pointer to a file object (defined in linux/fs.h)
  */
 static int dev_open(struct inode *inodep, struct file *filep){
-    if(!mutex_trylock(&dev_mutex)){    /// Try to acquire the mutex 
+    if(use_mutex && !mutex_trylock(&dev_mutex)){    /// Try to acquire the mutex 
       printk(KERN_ALERT "MAFilter: Device in use by another process");
       return -EBUSY;
    }
@@ -162,12 +164,14 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
    int error_count = 0;
    int write_count, read_count;
    char* lxBuffer;
-      
+   int char_count;
+
    read_count = RetriveNumbers(dStore, dataBuffer, DATA_BUFFFER_SIZE);  
       
    lxBuffer = (char*)kmalloc(len, GFP_KERNEL);
    write_count = ConvertToString(dataBuffer, read_count, lxBuffer, len);
-   error_count = copy_to_user(buffer, lxBuffer, strlen(lxBuffer)+1);
+   char_count = strlen(lxBuffer)+1;
+   error_count = copy_to_user(buffer, lxBuffer, char_count);
    kfree(lxBuffer);
    
    // if dev_read provided too small of a buffer then push back non returned data
@@ -176,8 +180,8 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
    }
    
    if (error_count==0){    // if no errors then success
-      printk(KERN_INFO "MAFilter: Sent %d numbers to the user\n", write_count);
-      return 0;  
+      printk(KERN_INFO "MAFilter: Sent %d numbers (%s)\n", write_count, lxBuffer);
+      return char_count;  
    }
    else {
       printk(KERN_INFO "MAFilter: Failed to send %d numbers to the user\n", error_count);
@@ -197,15 +201,19 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
     int wr_count;
     char* lxBuffer;
     
+    
     // NOTE: in the case where input len is greater than DATA_BUFFFER_SIZE
     // data will be lost from the head of the store to preserve the most recently written data 
     //  this rule is encoded in the DataStore
-    lxBuffer = (char*)kmalloc(len, GFP_KERNEL);
+    lxBuffer = (char*)kmalloc(len+1, GFP_KERNEL);
     error_count = copy_from_user(lxBuffer, buffer, len);
+    lxBuffer[len]= 0;
     wr_count = ConvertToIntArray(lxBuffer, dataBuffer, DATA_BUFFFER_SIZE);
     DoMovAvgOnValues(movAvgFilter, dataBuffer, wr_count);
     StoreNumbers(dStore, dataBuffer, wr_count);
+    printk(KERN_INFO "MAFilter: Received len(%lu) str(%s) \n", len, lxBuffer);
     kfree(lxBuffer);
+    
     
     printk(KERN_INFO "MAFilter: Received %d numbers from the user\n", wr_count);
     return len;
@@ -217,7 +225,7 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
  *  @param filep A pointer to a file object (defined in linux/fs.h)
  */
 static int dev_release(struct inode *inodep, struct file *filep){
-    mutex_unlock(&dev_mutex);          /// Releases the mutex
+    if( use_mutex) mutex_unlock(&dev_mutex);          /// Releases the mutex
     printk(KERN_INFO "MAFilter: Device successfully closed\n");
     return 0;
 }

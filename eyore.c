@@ -60,29 +60,29 @@ void test_converters (){
     assert_equal( data[8], 32, "E2a:Wrong value returned from ConvertToIntArray for index = 8");   
     assert_equal( data[15], 678, "E2b:Wrong value returned from ConvertToIntArray for index = 15");   
               
-    result = ConvertToString(data, result, outStr, 30);
+    result = ConvertToString(data, result, outStr, 38);
     
     assert_equal( result, 9, "E3a:Wrong number of ints returned from ConvertToString ");   
 
-    assert_str_equal(outStr, "5 17 183 2073 0 1 888 921 32", "E3b: Wrong string returned from ConvertToString" );
+    assert_str_equal(outStr, "5, 17, 183, 2073, 0, 1, 888, 921, 32", "E3b: Wrong string returned from ConvertToString" );
     
     result = ConvertToString(data, 16, outStr, 100);
     
     assert_equal( result, 16, "E4a:Wrong number of ints returned from ConvertToString ");   
 
-    assert_str_equal(outStr, "5 17 183 2073 0 1 888 921 32 0 666 22 33 44 55 678", "E4b: Wrong string returned from ConvertToString" );
+    assert_str_equal(outStr, "5, 17, 183, 2073, 0, 1, 888, 921, 32, 0, 666, 22, 33, 44, 55, 678", "E4b: Wrong string returned from ConvertToString" );
  
     // short buffer for convert to 
-    result = ConvertToString(data, 16, outStr, 22);
+    result = ConvertToString(data, 16, outStr, 28);
     assert_equal( result, 7, "E5a:Wrong number of ints returned from ConvertToString ");   
 
-    assert_str_equal(outStr, "5 17 183 2073 0 1 888", "E5b: Wrong string returned from ConvertToString" );
+    assert_str_equal(outStr, "5, 17, 183, 2073, 0, 1, 888", "E5b: Wrong string returned from ConvertToString" );
     
      // short buffer for convert to 
-    result = ConvertToString(data, 16, outStr, 21);
+    result = ConvertToString(data, 16, outStr, 27);
     assert_equal( result, 6, "E6a:Wrong number of ints returned from ConvertToString ");   
 
-    assert_str_equal(outStr, "5 17 183 2073 0 1", "E6b: Wrong string returned from ConvertToString" );
+    assert_str_equal(outStr, "5, 17, 183, 2073, 0, 1", "E6b: Wrong string returned from ConvertToString" );
     
     
 }
