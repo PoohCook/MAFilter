@@ -180,11 +180,11 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
    }
    
    if (error_count==0){    // if no errors then success
-      printk(KERN_INFO "MAFilter: Sent %d numbers (%s)\n", write_count, lxBuffer);
+      printk(KERN_INFO "MAFilter: dev_read sent %d numbers \n", write_count);
       return char_count;  
    }
    else {
-      printk(KERN_INFO "MAFilter: Failed to send %d numbers to the user\n", error_count);
+      printk(KERN_INFO "MAFilter: dev_read failed to send %d numbers to the user\n", error_count);
       return -EFAULT; // Failed -- return a bad address message (i.e. -14)
    }
 }
@@ -211,11 +211,10 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
     wr_count = ConvertToIntArray(lxBuffer, dataBuffer, DATA_BUFFFER_SIZE);
     DoMovAvgOnValues(movAvgFilter, dataBuffer, wr_count);
     StoreNumbers(dStore, dataBuffer, wr_count);
-    printk(KERN_INFO "MAFilter: Received len(%lu) str(%s) \n", len, lxBuffer);
     kfree(lxBuffer);
     
     
-    printk(KERN_INFO "MAFilter: Received %d numbers from the user\n", wr_count);
+    printk(KERN_INFO "MAFilter: dev_write received %d numbers from the user\n", wr_count);
     return len;
 }
 
@@ -241,8 +240,10 @@ static long dev_ioctl (struct file *filep, unsigned int cmd, unsigned long arg){
     printk(KERN_INFO "MAFilter: Device control recieved cmd(%x) arg(%lu)\n", cmd, arg ); 
     switch( cmd){
        case MAF_SET_FILTER_SIZE:
-          allocate_new_movAvgFilter(arg);
-          printk(KERN_INFO "MAFilter: Reset Filter buffer size to: %lu\n",  arg );  
+          if( arg > 0){
+            allocate_new_movAvgFilter(arg);
+            printk(KERN_INFO "MAFilter: Reset Filter buffer size to: %lu\n",  arg ); 
+          }
           break;
           
        default:
